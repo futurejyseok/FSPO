@@ -1,4 +1,43 @@
-<!DOCTYPE html>
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
@@ -281,23 +320,23 @@
             margin-bottom: 1rem;
             font-size: 1.5rem;
         }
-        
- /* PDF 업로드 및 다운로드 스타일 */
-        .pdf-upload-container {
+
+        /* PDF 및 음성 업로드 스타일 */
+        .upload-container {
             margin: 2rem 0;
             text-align: center;
         }
 
-        .pdf-upload-container h3 {
+        .upload-container h3 {
             color: #1e40af;
             margin-bottom: 1rem;
         }
 
-        .pdf-upload-container input[type="file"] {
+        .upload-container input[type="file"] {
             display: none;
         }
 
-        .pdf-upload-button {
+        .upload-button {
             display: inline-block;
             background: #1e40af;
             color: white;
@@ -306,33 +345,40 @@
             cursor: pointer;
             font-weight: 500;
             transition: all 0.3s ease;
+            margin: 0.5rem;
         }
 
-        .pdf-upload-button:hover {
+        .upload-button:hover {
             background: #1e3a8a;
             transform: translateY(-2px);
         }
 
-        .pdf-list {
+        .file-list {
             margin-top: 1rem;
             list-style: none;
         }
 
-        .pdf-list li {
+        .file-list li {
             margin: 0.5rem 0;
         }
 
-        .pdf-list a {
+        .file-list a {
             color: #1e40af;
             text-decoration: none;
             font-weight: 500;
             transition: color 0.3s ease;
         }
 
-        .pdf-list a:hover {
+        .file-list a:hover {
             color: #764ba2;
         }
-        
+
+        .file-list audio {
+            width: 100%;
+            max-width: 300px;
+            margin-top: 0.5rem;
+        }
+
         /* 애니메이션 */
         @keyframes fadeInUp {
             from {
@@ -400,6 +446,11 @@
                 padding-left: 1rem;
                 padding-right: 1rem;
             }
+
+            .upload-button {
+                padding: 0.6rem 1.2rem;
+                font-size: 0.9rem;
+            }
         }
 
         @media (max-width: 480px) {
@@ -410,6 +461,15 @@
             .cta-button {
                 padding: 0.8rem 1.5rem;
                 font-size: 0.9rem;
+            }
+
+            .upload-button {
+                padding: 0.6rem 1.2rem;
+                font-size: 0.8rem;
+            }
+
+            .file-list audio {
+                max-width: 100%;
             }
         }
     </style>
@@ -485,7 +545,7 @@
         </div>
     </section>
     
-        <!-- 동향정보 섹션 -->
+    <!-- 동향정보 섹션 -->
     <section class="section" id="trends">
         <h2 class="section-title fade-in">동향정보</h2>
         <div class="cards-container">
@@ -501,6 +561,15 @@
                 <h3>토픽 모델링</h3>
                 <p>문서 집합에서 숨겨진 주제(토픽)를 자동으로 추출해내는 기계학습 기반의 텍스트 분석 기법입니다.</p>
             </div>
+        </div>
+        <div class="upload-container fade-in">
+            <h3>PDF 및 음성 자료 업로드</h3>
+            <label for="pdf-upload" class="upload-button">PDF 파일 업로드</label>
+            <input type="file" id="pdf-upload" accept="application/pdf" multiple>
+            <label for="audio-upload" class="upload-button">음성 파일 업로드</label>
+            <input type="file" id="audio-upload" accept="audio/mpeg,audio/wav,audio/ogg" multiple>
+            <h4>업로드된 파일</h4>
+            <ul class="file-list" id="file-list"></ul>
         </div>
     </section>
 
@@ -529,7 +598,7 @@
             <h3>부산대학교 미래정책실</h3>
             <p>주소: 부산광역시 금정구 부산대학로 63번길 2</p>
             <p>전화: 051-510-7244 | 이메일: future@pusan.ac.kr</p>
-            <p>&copy; 2025 부산대학교 미래정책실. All rights reserved.</p>
+            <p>© 2025 부산대학교 미래정책실. All rights reserved.</p>
         </div>
     </footer>
 
@@ -594,9 +663,11 @@
         document.querySelector('.mobile-menu').addEventListener('click', function() {
             this.classList.toggle('active');
         });
-                // PDF 업로드 및 다운로드 기능
+
+        // PDF 및 음성 업로드 기능
         const pdfUploadInput = document.getElementById('pdf-upload');
-        const pdfList = document.getElementById('pdf-list');
+        const audioUploadInput = document.getElementById('audio-upload');
+        const fileList = document.getElementById('file-list');
 
         pdfUploadInput.addEventListener('change', function(event) {
             const files = event.target.files;
@@ -606,9 +677,26 @@
                     const link = document.createElement('a');
                     link.href = URL.createObjectURL(file);
                     link.download = file.name;
-                    link.textContent = file.name;
+                    link.textContent = `PDF: ${file.name}`;
                     li.appendChild(link);
-                    pdfList.appendChild(li);
+                    fileList.appendChild(li);
+                }
+            }
+        });
+
+        audioUploadInput.addEventListener('change', function(event) {
+            const files = event.target.files;
+            for (let file of files) {
+                if (['audio/mpeg', 'audio/wav', 'audio/ogg'].includes(file.type)) {
+                    const li = document.createElement('li');
+                    const audio = document.createElement('audio');
+                    audio.controls = true;
+                    audio.src = URL.createObjectURL(file);
+                    const label = document.createElement('p');
+                    label.textContent = `음성: ${file.name}`;
+                    li.appendChild(label);
+                    li.appendChild(audio);
+                    fileList.appendChild(li);
                 }
             }
         });
