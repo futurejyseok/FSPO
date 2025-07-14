@@ -1,0 +1,742 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>부산대학교 미래정책실</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            overflow-x: hidden;
+        }
+
+        /* 네비게이션 바 */
+        .navbar {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+            transition: all 0.3s ease;
+            padding: 1rem 0;
+        }
+
+        .navbar.scrolled {
+            background: rgba(255, 255, 255, 0.98);
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #1e40af;
+        }
+
+        .nav-menu {
+            display: flex;
+            list-style: none;
+            gap: 2rem;
+        }
+
+        .nav-menu a {
+            text-decoration: none;
+            color: #333;
+            font-weight: 500;
+            transition: color 0.3s ease;
+        }
+
+        .nav-menu a:hover {
+            color: #1e40af;
+        }
+
+        .mobile-menu {
+            display: none;
+            flex-direction: column;
+            cursor: pointer;
+        }
+
+        .mobile-menu span {
+            width: 25px;
+            height: 3px;
+            background: #333;
+            margin: 3px 0;
+            transition: 0.3s;
+        }
+
+        .mobile-menu.active span:nth-child(1) {
+            transform: rotate(45deg) translate(5px, 5px);
+        }
+
+        .mobile-menu.active span:nth-child(2) {
+            opacity: 0;
+        }
+
+        .mobile-menu.active span:nth-child(3) {
+            transform: rotate(-45deg) translate(7px, -7px);
+        }
+
+        /* 히어로 섹션 */
+        .hero {
+            height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            color: white;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero-content {
+            max-width: 800px;
+            z-index: 2;
+            animation: fadeInUp 1s ease-out;
+        }
+
+        .hero h1 {
+            font-size: 3.5rem;
+            margin-bottom: 1rem;
+            font-weight: 700;
+        }
+
+        .hero p {
+            font-size: 1.2rem;
+            margin-bottom: 2rem;
+            opacity: 0.9;
+        }
+
+        .cta-button {
+            display: inline-block;
+            background: #fff;
+            color: #1e40af;
+            padding: 1rem 2rem;
+            text-decoration: none;
+            border-radius: 50px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .cta-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        /* 파도 애니메이션 */
+        .wave-container {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 150px;
+            opacity: 0;
+            transition: opacity 1s ease;
+        }
+
+        .wave-container.visible {
+            opacity: 1;
+        }
+
+        .wave {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 200%;
+            height: 100%;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 120" preserveAspectRatio="none"><path d="M0,0V46.29c47.79,22.2,103.59,32.17,158,28,70.36-5.37,136.33-33.31,206.8-37.5C438.64,32.43,512.34,53.67,583,72.05c69.27,18,138.3,24.88,209.4,13.08,36.15-6,69.85-17.84,104.45-29.34C989.49,25,1113-14.29,1200,52.47V0Z" opacity=".25" fill="%23ffffff"/><path d="M0,0V15.81C13,36.92,27.64,56.86,47.69,72.05,99.41,111.27,165,111,224.58,91.58c31.15-10.15,60.09-26.07,89.67-39.8,40.92-19,84.73-46,130.83-49.67,36.26-2.85,70.9,9.42,98.6,31.56,31.77,25.39,62.32,62,103.63,73,40.44,10.79,81.35-6.69,119.13-24.28s75.16-39,116.92-43.05c59.73-5.85,113.28,22.88,168.9,38.84,30.2,8.66,59,6.17,87.09-7.5,22.43-10.89,48-26.93,60.65-49.24V0Z" opacity=".5" fill="%23ffffff"/><path d="M0,0V5.63C149.93,59,314.09,71.32,475.83,42.57c43-7.64,84.23-20.12,127.61-26.46,59-8.63,112.48,12.24,165.56,35.4C827.93,77.22,886,95.24,951.2,90c86.53-7,172.46-45.71,248.8-84.81V0Z" fill="%23ffffff"/></svg>') repeat-x;
+            animation: wave 10s linear infinite;
+        }
+
+        .wave:nth-child(2) {
+            bottom: 10px;
+            animation: wave 15s linear infinite reverse;
+            opacity: 0.8;
+        }
+
+        .wave:nth-child(3) {
+            bottom: 20px;
+            animation: wave 20s linear infinite;
+            opacity: 0.6;
+        }
+
+        @keyframes wave {
+            0% {
+                transform: translateX(0);
+            }
+            100% {
+                transform: translateX(-50%);
+            }
+        }
+
+        /* 메인 콘텐츠 섹션 */
+        .section {
+            padding: 5rem 0;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding-left: 2rem;
+            padding-right: 2rem;
+        }
+
+        .section-title {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 3rem;
+            color: #1e40af;
+        }
+
+        .cards-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-top: 3rem;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 2rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+        }
+
+        .card h3 {
+            color: #1e40af;
+            margin-bottom: 1rem;
+            font-size: 1.3rem;
+        }
+
+        .card p {
+            color: #666;
+            line-height: 1.6;
+        }
+
+        /* 소개 섹션 */
+        .about-section {
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            padding: 5rem 0;
+        }
+
+        .about-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4rem;
+            align-items: center;
+        }
+
+        .about-text h2 {
+            font-size: 2.5rem;
+            color: #1e40af;
+            margin-bottom: 1.5rem;
+        }
+
+        .about-text p {
+            font-size: 1.1rem;
+            color: #555;
+            margin-bottom: 1.5rem;
+        }
+
+        .about-image {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 20px;
+            height: 400px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.5rem;
+            text-align: center;
+        }
+
+        /* 푸터 */
+        .footer {
+            background: #1e40af;
+            color: white;
+            padding: 3rem 0;
+            text-align: center;
+        }
+
+        .footer-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem;
+        }
+
+        .footer h3 {
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+        }
+
+        /* PDF 및 음성 업로드 스타일 */
+        .upload-container {
+            margin: 2rem 0;
+            text-align: center;
+        }
+
+        .upload-container h3 {
+            color: #1e40af;
+            margin-bottom: 1rem;
+        }
+
+        .upload-container input[type="file"] {
+            display: none;
+        }
+
+        .upload-button {
+            display: inline-block;
+            background: #1e40af;
+            color: white;
+            padding: 0.8rem 1.5rem;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            margin: 0.5rem;
+        }
+
+        .upload-button:hover {
+            background: #1e3a8a;
+            transform: translateY(-2px);
+        }
+
+        .file-list {
+            margin-top: 1rem;
+            list-style: none;
+        }
+
+        .file-list li {
+            margin: 0.5rem 0;
+        }
+
+        .file-list a {
+            color: #1e40af;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s ease;
+        }
+
+        .file-list a:hover {
+            color: #764ba2;
+        }
+
+        .file-list audio {
+            width: 100%;
+            max-width: 300px;
+            margin-top: 0.5rem;
+        }
+
+        /* 애니메이션 */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .fade-in {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all 0.8s ease;
+        }
+
+        .fade-in.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* 반응형 디자인 및 모바일 메뉴 */
+        @media (max-width: 768px) {
+            .nav-menu {
+                display: none;
+                flex-direction: column;
+                position: absolute;
+                top: 60px;
+                left: 0;
+                width: 100%;
+                background: rgba(255, 255, 255, 0.95);
+                backdrop-filter: blur(10px);
+                padding: 1rem;
+                box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+                z-index: 999;
+            }
+
+            .nav-menu.active {
+                display: flex;
+            }
+
+            .nav-menu li {
+                margin: 0.5rem 0;
+            }
+
+            .mobile-menu {
+                display: flex;
+            }
+
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+
+            .hero p {
+                font-size: 1rem;
+            }
+
+            .section-title {
+                font-size: 2rem;
+            }
+
+            .cards-container {
+                grid-template-columns: 1fr;
+            }
+
+            .about-content {
+                grid-template-columns: 1fr;
+                gap: 2rem;
+            }
+
+            .about-text h2 {
+                font-size: 2rem;
+            }
+
+            .nav-container {
+                padding: 0 1rem;
+            }
+
+            .section {
+                padding: 3rem 0;
+                padding-left: 1rem;
+                padding-right: 1rem;
+            }
+
+            .upload-button {
+                padding: 0.6rem 1.2rem;
+                font-size: 0.9rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .hero h1 {
+                font-size: 2rem;
+            }
+
+            .cta-button {
+                padding: 0.8rem 1.5rem;
+                font-size: 0.9rem;
+            }
+
+            .upload-button {
+                padding: 0.6rem 1.2rem;
+                font-size: 0.8rem;
+            }
+
+            .file-list audio {
+                max-width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 네비게이션 -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="logo">부산대학교 미래정책실</div>
+            <ul class="nav-menu">
+                <li><a href="#home">홈</a></li>
+                <li><a href="#about">소개</a></li>
+                <li><a href="#programs">주요업무</a></li>
+                <li><a href="#trends">동향정보</a></li>
+                <li><a href="#research">연구성과</a></li>
+                <li><a href="#contact">연락처</a></li>
+            </ul>
+            <div class="mobile-menu">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 히어로 섹션 -->
+    <section class="hero" id="home">
+        <div class="hero-content">
+            <h1>미래를 설계하는 정책</h1>
+            <p>부산대학교 미래정책실은 혁신적인 정책 연구와 실행을 통해 더 나은 미래를 만들어갑니다</p>
+            <a href="#about" class="cta-button">자세히 알아보기</a>
+        </div>
+        <div class="wave-container" id="waveContainer">
+            <div class="wave"></div>
+            <div class="wave"></div>
+            <div class="wave"></div>
+        </div>
+    </section>
+
+    <!-- 소개 섹션 -->
+    <section class="about-section" id="about">
+        <div class="about-content">
+            <div class="about-text fade-in">
+                <h2>미래정책실 소개</h2>
+                <p>부산대학교 미래정책실은 급변하는 사회 환경에 대응하여 대학의 미래 발전 방향을 제시하고, 혁신적인 정책을 연구·개발하는 전문 기관입니다.</p>
+                <p>우리는 데이터 기반의 정책 분석과 미래 예측을 통해 대학의 경쟁력을 강화하고, 사회적 가치 창출을 위한 다양한 프로그램을 운영하고 있습니다.</p>
+            </div>
+            <div class="about-image fade-in">
+                <div>
+                    <h3>FUTURE POLICY</h3>
+                    <p>혁신과 미래를 향한 비전</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 주요업무 섹션 -->
+    <section class="section" id="programs">
+        <h2 class="section-title fade-in">주요업무</h2>
+        <div class="cards-container">
+            <div class="card fade-in">
+                <h3>정책 연구</h3>
+                <p>대학 발전을 위한 혁신적인 정책 연구를 수행하며, 국내외 우수 사례를 분석하여 실행 가능한 정책 대안을 제시합니다.</p>
+            </div>
+            <div class="card fade-in">
+                <h3>데이터 분석</h3>
+                <p>빅데이터와 AI를 활용한 미래 트렌드 분석을 통해 대학이 나아가야 할 방향을 예측하고 전략을 수립합니다.</p>
+            </div>
+            <div class="card fade-in">
+                <h3>정책 교육</h3>
+                <p>구성원들의 정책 역량 강화를 위한 교육 프로그램을 운영하며, 정책 전문가 양성에 기여합니다.</p>
+            </div>
+        </div>
+    </section>
+    
+    <!-- 동향정보 섹션 -->
+    <section class="section" id="trends">
+        <h2 class="section-title fade-in">동향정보</h2>
+        <div class="cards-container">
+            <div class="card fade-in">
+                <h3>텍스트 마이닝</h3>
+                <p>대학과 관련된 주요 이슈 키워드를 수집하며, 대학 미래정책 수립에 필요한 인사이트 제공합니다.</p>
+            </div>
+            <div class="card fade-in">
+                <h3>네트워크 분석</h3>
+                <p>네트워크 요소 간의 연결 구조를 시각화하고 노드를 수치화해서 관계의 중심성과 확산 경로를 파악합니다.</p>
+            </div>
+            <div class="card fade-in">
+                <h3>토픽 모델링</h3>
+                <p>문서 집합에서 숨겨진 주제(토픽)를 자동으로 추출해내는 기계학습 기반의 텍스트 분석 기법입니다.</p>
+            </div>
+        </div>
+        <div class="upload-container fade-in">
+            <h3>PDF 및 음성 자료 업로드</h3>
+            <label for="pdf-upload" class="upload-button">PDF 파일 업로드</label>
+            <input type="file" id="pdf-upload" accept="application/pdf" multiple>
+            <label for="audio-upload" class="upload-button">음성 파일 업로드</label>
+            <input type="file" id="audio-upload" accept="audio/mpeg,audio/wav,audio/ogg" multiple>
+            <h4>업로드된 파일</h4>
+            <ul class="file-list" id="file-list"></ul>
+        </div>
+    </section>
+
+    <!-- 연구 섹션 -->
+    <section class="section" id="research">
+        <h2 class="section-title fade-in">연구 분야</h2>
+        <div class="cards-container">
+            <div class="card fade-in">
+                <h3>교육 혁신</h3>
+                <p>인공지능AI 시대에 맞는 교육 모델 개발과 AX 교육 환경 구축을 위한 정책 연구를 진행합니다.</p>
+            </div>
+            <div class="card fade-in">
+                <h3>산학 협력</h3>
+                <p>지역 산업과의 연계를 강화하고 실질적인 협력 모델을 개발하여 지역 경제 발전에 기여합니다.</p>
+            </div>
+            <div class="card fade-in">
+                <h3>국제화</h3>
+                <p>글로벌 대학으로의 도약을 위한 국제화 전략을 수립하고 해외 우수 대학과의 교류를 확대합니다.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- 푸터 -->
+    <footer class="footer" id="contact">
+        <div class="footer-content">
+            <h3>부산대학교 미래정책실</h3>
+            <p>주소: 부산광역시 금정구 부산대학로 63번길 2</p>
+            <p>전화: 051-510-7244 | 이메일: future@pusan.ac.kr</p>
+            <p>© 2025 부산대학교 미래정책실. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script>
+        // 네비게이션 스크롤 효과
+        window.addEventListener('scroll', function() {
+            const navbar = document.querySelector('.navbar');
+            if (window.scrollY > 50) {
+                navbar.classList.add('scrolled');
+            } else {
+                navbar.classList.remove('scrolled');
+            }
+        });
+
+        // 파도 애니메이션 스크롤 효과
+        window.addEventListener('scroll', function() {
+            const waveContainer = document.getElementById('waveContainer');
+            const scrolled = window.pageYOffset;
+            const rate = scrolled * -0.5;
+            
+            if (scrolled > 100) {
+                waveContainer.classList.add('visible');
+                waveContainer.style.transform = `translateY(${rate}px)`;
+            } else {
+                waveContainer.classList.remove('visible');
+            }
+        });
+
+        // 페이드 인 애니메이션
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -100px 0px'
+        };
+
+        const observer = new IntersectionObserver(function(entries) {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                }
+            });
+        }, observerOptions);
+
+        document.querySelectorAll('.fade-in').forEach(el => {
+            observer.observe(el);
+        });
+
+        // 부드러운 스크롤
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                    // 모바일 메뉴 닫기
+                    const navMenu = document.querySelector('.nav-menu');
+                    const mobileMenu = document.querySelector('.mobile-menu');
+                    navMenu.classList.remove('active');
+                    mobileMenu.classList.remove('active');
+                }
+            });
+        });
+
+        // 모바일 메뉴 토글
+        document.querySelector('.mobile-menu').addEventListener('click', function() {
+            this.classList.toggle('active');
+            const navMenu = document.querySelector('.nav-menu');
+            navMenu.classList.toggle('active');
+        });
+
+        // PDF 및 음성 업로드 기능
+        const pdfUploadInput = document.getElementById('pdf-upload');
+        const audioUploadInput = document.getElementById('audio-upload');
+        const fileList = document.getElementById('file-list');
+
+        pdfUploadInput.addEventListener('change', function(event) {
+            const files = event.target.files;
+            for (let file of files) {
+                if (file.type === 'application/pdf') {
+                    const li = document.createElement('li');
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(file);
+                    link.download = file.name;
+                    link.textContent = `PDF: ${file.name}`;
+                    li.appendChild(link);
+                    fileList.appendChild(li);
+                }
+            }
+        });
+
+        audioUploadInput.addEventListener('change', function(event) {
+            const files = event.target.files;
+            for (let file of files) {
+                if (['audio/mpeg', 'audio/wav', 'audio/ogg'].includes(file.type)) {
+                    const li = document.createElement('li');
+                    const audio = document.createElement('audio');
+                    audio.controls = true;
+                    audio.src = URL.createObjectURL(file);
+                    const label = document.createElement('p');
+                    label.textContent = `음성: ${file.name}`;
+                    li.appendChild(label);
+                    li.appendChild(audio);
+                    fileList.appendChild(li);
+                }
+            }
+        });
+    </script>
+</body>
+</html>
