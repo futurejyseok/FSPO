@@ -281,7 +281,58 @@
             margin-bottom: 1rem;
             font-size: 1.5rem;
         }
+        
+ /* PDF 업로드 및 다운로드 스타일 */
+        .pdf-upload-container {
+            margin: 2rem 0;
+            text-align: center;
+        }
 
+        .pdf-upload-container h3 {
+            color: #1e40af;
+            margin-bottom: 1rem;
+        }
+
+        .pdf-upload-container input[type="file"] {
+            display: none;
+        }
+
+        .pdf-upload-button {
+            display: inline-block;
+            background: #1e40af;
+            color: white;
+            padding: 0.8rem 1.5rem;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .pdf-upload-button:hover {
+            background: #1e3a8a;
+            transform: translateY(-2px);
+        }
+
+        .pdf-list {
+            margin-top: 1rem;
+            list-style: none;
+        }
+
+        .pdf-list li {
+            margin: 0.5rem 0;
+        }
+
+        .pdf-list a {
+            color: #1e40af;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s ease;
+        }
+
+        .pdf-list a:hover {
+            color: #764ba2;
+        }
+        
         /* 애니메이션 */
         @keyframes fadeInUp {
             from {
@@ -542,6 +593,24 @@
         // 모바일 메뉴 (기본 기능)
         document.querySelector('.mobile-menu').addEventListener('click', function() {
             this.classList.toggle('active');
+        });
+                // PDF 업로드 및 다운로드 기능
+        const pdfUploadInput = document.getElementById('pdf-upload');
+        const pdfList = document.getElementById('pdf-list');
+
+        pdfUploadInput.addEventListener('change', function(event) {
+            const files = event.target.files;
+            for (let file of files) {
+                if (file.type === 'application/pdf') {
+                    const li = document.createElement('li');
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(file);
+                    link.download = file.name;
+                    link.textContent = file.name;
+                    li.appendChild(link);
+                    pdfList.appendChild(li);
+                }
+            }
         });
     </script>
 </body>
